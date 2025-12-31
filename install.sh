@@ -4,7 +4,7 @@
 # Và thiết lập menu quản lý với lệnh 'bnix'
 
 # URL để cập nhật script (thay thế bằng URL thực tế của bạn)
-SCRIPT_UPDATE_URL="https://example.com/install.sh"
+SCRIPT_UPDATE_URL="https://raw.githubusercontent.com/bnixvn/caddy/main/install.sh"
 
 # Kiểm tra tham số update
 if [ "$1" == "update" ]; then
@@ -110,67 +110,23 @@ generate_wp_salts() {
     curl -s https://api.wordpress.org/secret-key/1.1/salt/
 }
 
-# 1. Cài đặt đầy đủ
-install_all() {
-    echo "Kiểm tra và cài đặt các thành phần..."
-    
-    # Kiểm tra và cài đặt Caddy
-    if ! command -v caddy &> /dev/null; then
-        echo "Cài đặt Caddy..."
-        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
-        sudo apt update && sudo apt install caddy -y
+# Hàm cập nhật script
+update_script() {
+    echo "Đang kiểm tra phiên bản mới..."
+    wget -q "$SCRIPT_UPDATE_URL" -O /tmp/install_new.sh
+    if [ $? -eq 0 ]; then
+        # So sánh với phiên bản hiện tại
+        if cmp -s /tmp/install_new.sh /usr/local/bin/bnix-install.sh; then
+            echo "Script đã là phiên bản mới nhất."
+        else
+            echo "Đang cập nhật script..."
+            sudo mv /tmp/install_new.sh /usr/local/bin/bnix-install.sh
+            sudo chmod +x /usr/local/bin/bnix-install.sh
+            echo "Script đã được cập nhật! Khởi động lại menu để áp dụng thay đổi."
+        fi
     else
-        echo "Caddy đã được cài đặt."
+        echo "Không thể tải phiên bản mới. Kiểm tra kết nối internet."
     fi
-    
-    # Kiểm tra và cài đặt PHP 8.4
-    if ! command -v php8.4 &> /dev/null; then
-        echo "Cài đặt PHP 8.4..."
-        sudo apt install software-properties-common -y
-        sudo add-apt-repository ppa:ondrej/php -y
-        sudo apt update
-        sudo apt install php8.4 php8.4-cli php8.4-fpm php8.4-mysql php8.4-xml php8.4-mbstring php8.4-curl php8.4-zip php8.4-gd php8.4-intl php8.4-bcmath php8.4-opcache php8.4-imagick -y
-    else
-        echo "PHP 8.4 đã được cài đặt."
-    fi
-    
-    # Kiểm tra và cài đặt MariaDB 11.4
-    if ! command -v mariadb &> /dev/null; then
-        echo "Cài đặt MariaDB 11.4..."
-        sudo apt install apt-transport-https curl -y
-        sudo mkdir -p /etc/apt/keyrings
-        curl -o /etc/apt/keyrings/mariadb-keyring.pgp 'https://mariadb.org/mariadb_release_signing_key.pgp'
-        echo "deb [signed-by=/etc/apt/keyrings/mariadb-keyring.pgp] https://mirror.23m.com/mariadb/repo/11.4/ubuntu noble main" | sudo tee /etc/apt/sources.list.d/mariadb.list
-        sudo apt update && sudo apt install mariadb-server -y
-    else
-        echo "MariaDB đã được cài đặt."
-    fi
-    
-    # Tạo mật khẩu root nếu chưa có config
-    if [ ! -f $CONFIG_FILE ]; then
-        ROOT_PASS=$(generate_password)
-        sudo mariadb -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$ROOT_PASS';"
-        echo "ROOT_PASS=$ROOT_PASS" > $CONFIG_FILE
-        chmod 600 $CONFIG_FILE
-        echo "Mật khẩu root MariaDB: $ROOT_PASS (đã lưu trong $CONFIG_FILE)"
-    else
-        echo "File config đã tồn tại."
-    fi
-    
-    # Khởi động dịch vụ
-    sudo systemctl enable --now caddy php8.4-fpm mariadb
-    
-    # Tối ưu PHP-FPM
-    optimize_php
-    
-    # Tối ưu MariaDB
-    optimize_mariadb
-    
-    # Cấu hình Caddy cho PHP
-    config_caddy_php
-    
-    echo "Cài đặt hoàn thành!"
 }
 
 # 2. Quản lý website
@@ -180,6 +136,7 @@ create_wp_site() {
         return
     fi
     read -p "Nhập tên domain: " domain
+    domain=$(echo "$domain" | sed 's|/*$||')  # remove trailing slashes
     read -p "Nhập đường dẫn webroot (mặc định /var/www/$domain): " webroot
     webroot=${webroot:-/var/www/$domain}
     
@@ -206,9 +163,9 @@ create_wp_site() {
     
     # Tạo wp-config.php
     sudo -u www-data cp wp-config-sample.php wp-config.php
-    sudo -u www-data sed -i "s/database_name_here/$db_name/" wp-config.php
-    sudo -u www-data sed -i "s/username_here/$db_user/" wp-config.php
-    sudo -u www-data sed -i "s/password_here/$db_pass/" wp-config.php
+    sudo -u www-data sed -i "s|database_name_here|$db_name|" wp-config.php
+    sudo -u www-data sed -i "s|username_here|$db_user|" wp-config.php
+    sudo -u www-data sed -i "s|password_here|$db_pass|" wp-config.php
     
     # Thêm salts
     salts=$(generate_wp_salts)
@@ -235,6 +192,7 @@ CADDY_EOF
 
 delete_wp_site() {
     read -p "Nhập domain cần xóa: " domain
+    domain=$(echo "$domain" | sed 's|/*$||')  # remove trailing slashes
     webroot=$(grep "^$domain|" /etc/bnix/sites.conf | cut -d'|' -f2)
     db_name=$(grep "^$domain|" /etc/bnix/sites.conf | cut -d'|' -f3)
     
@@ -246,8 +204,8 @@ delete_wp_site() {
     # Xóa thư mục
     sudo rm -rf $webroot
     
-    # Xóa database
-    sudo mariadb -u root -p$(grep ROOT_PASS $CONFIG_FILE | cut -d'=' -f2) -e "DROP DATABASE $db_name;"
+    # Lưu ý: Database được giữ lại để bảo toàn dữ liệu
+    # sudo mariadb -u root -p$(grep ROOT_PASS $CONFIG_FILE | cut -d'=' -f2) -e "DROP DATABASE $db_name;"
     
     # Xóa cấu hình Caddy
     sudo rm -f /etc/caddy/sites/$domain
@@ -261,6 +219,7 @@ delete_wp_site() {
 
 backup_website() {
     read -p "Nhập domain cần backup: " domain
+    domain=$(echo "$domain" | sed 's|/*$||')  # remove trailing slashes
     webroot=$(grep "^$domain|" /etc/bnix/sites.conf | cut -d'|' -f2)
     db_name=$(grep "^$domain|" /etc/bnix/sites.conf | cut -d'|' -f3)
     
@@ -277,13 +236,14 @@ backup_website() {
     sudo tar -czf $backup_dir/files_$timestamp.tar.gz -C $webroot .
     
     # Backup database
-    sudo mysqldump -u root -p$(grep ROOT_PASS $CONFIG_FILE | cut -d'=' -f2) $db_name > $backup_dir/db_$timestamp.sql
+    sudo mariadb-dump -u root -p$(grep ROOT_PASS $CONFIG_FILE | cut -d'=' -f2) $db_name > $backup_dir/db_$timestamp.sql
     
     echo "Backup hoàn thành: $backup_dir"
 }
 
 restore_website() {
     read -p "Nhập domain cần restore: " domain
+    domain=$(echo "$domain" | sed 's|/*$||')  # remove trailing slashes
     read -p "Nhập đường dẫn backup: " backup_path
     
     if [ ! -d "$backup_path" ]; then
@@ -323,6 +283,47 @@ show_websites() {
     fi
 }
 
+delete_all_sites() {
+    if [ ! -f /etc/bnix/sites.conf ]; then
+        echo "Không có website nào để xóa."
+        return
+    fi
+    
+    echo "CẢNH BÁO: Hành động này sẽ xóa TẤT CẢ website, bao gồm files và databases!"
+    read -p "Bạn có chắc chắn muốn xóa tất cả? (yes/no): " confirm
+    
+    if [ "$confirm" != "yes" ]; then
+        echo "Đã hủy."
+        return
+    fi
+    
+    while IFS='|' read -r domain webroot db_name db_user db_pass; do
+        echo "Đang xóa website: $domain"
+        
+        # Xóa thư mục
+        sudo rm -rf "$webroot"
+        
+        # Xóa database
+        sudo mariadb -u root -p$(grep ROOT_PASS $CONFIG_FILE | cut -d'=' -f2) -e "DROP DATABASE $db_name;" 2>/dev/null || echo "Database $db_name không tồn tại hoặc đã xóa."
+        
+        # Xóa user database
+        sudo mariadb -u root -p$(grep ROOT_PASS $CONFIG_FILE | cut -d'=' -f2) -e "DROP USER '$db_user'@'localhost';" 2>/dev/null || echo "User $db_user không tồn tại hoặc đã xóa."
+        
+        # Xóa cấu hình Caddy
+        sudo rm -f /etc/caddy/sites/"$domain"
+        
+        echo "Đã xóa: $domain"
+    done < /etc/bnix/sites.conf
+    
+    # Xóa file config
+    sudo rm -f /etc/bnix/sites.conf
+    
+    # Reload Caddy
+    sudo systemctl reload caddy
+    
+    echo "Đã xóa tất cả website."
+}
+
 # 3. Quản lý server
 manage_service() {
     echo "1. Khởi động  2. Dừng  3. Restart"
@@ -359,9 +360,30 @@ view_logs() {
     esac
 }
 
-update_system() {
+update_apt() {
     sudo apt update && sudo apt upgrade -y
     echo "Hệ thống đã được cập nhật."
+}
+
+update_caddy() {
+    echo "Cập nhật Caddy..."
+    sudo apt update && sudo apt install --only-upgrade caddy -y
+    sudo systemctl restart caddy
+    echo "Caddy đã được cập nhật."
+}
+
+update_php() {
+    echo "Cập nhật PHP 8.4..."
+    sudo apt update && sudo apt install --only-upgrade php8.4* -y
+    sudo systemctl restart php8.4-fpm
+    echo "PHP đã được cập nhật."
+}
+
+update_mariadb() {
+    echo "Cập nhật MariaDB..."
+    sudo apt update && sudo apt install --only-upgrade mariadb-server -y
+    sudo systemctl restart mariadb
+    echo "MariaDB đã được cập nhật."
 }
 
 # 4. Quản lý database
@@ -455,6 +477,7 @@ MYSQL_EOF
 
 config_ssl() {
     read -p "Nhập domain: " domain
+    domain=$(echo "$domain" | sed 's|/*$||')  # remove trailing slashes
     sudo apt install certbot python3-certbot-nginx -y
     sudo certbot --nginx -d $domain
     echo "SSL đã được cấu hình."
@@ -468,7 +491,7 @@ show_system_info() {
     echo "=== Phiên bản dịch vụ ==="
     caddy version
     php --version | head -1
-    mysql --version
+    mariadb --version
     echo ""
     echo "=== Tài nguyên ==="
     free -h
@@ -491,6 +514,7 @@ check_services() {
 
 check_http() {
     read -p "Nhập domain: " domain
+    domain=$(echo "$domain" | sed 's|/*$||')  # remove trailing slashes
     curl -I https://$domain
 }
 
@@ -512,7 +536,7 @@ if [ -f /etc/bnix/sites.conf ]; then
         # Backup files
         tar -czf \$BACKUP_DIR/\${domain}_files.tar.gz -C \$webroot .
         # Backup DB
-        mysqldump -u root -p\$(grep ROOT_PASS /etc/bnix_config | cut -d'=' -f2) \$db_name > \$BACKUP_DIR/\${domain}_db.sql
+        mariadb-dump -u root -p\$(grep ROOT_PASS /etc/bnix_config | cut -d'=' -f2) \$db_name > \$BACKUP_DIR/\${domain}_db.sql
     done < /etc/bnix/sites.conf
 fi
 
@@ -528,11 +552,6 @@ BACKUP_EOF
 }
 
 # 9. Cập nhật hệ thống
-update_system() {
-    sudo apt update && sudo apt upgrade -y
-    echo "Hệ thống đã được cập nhật."
-}
-
 # Hàm cấu hình Caddy cho PHP
 config_caddy_php() {
     sudo mkdir -p /etc/caddy/sites
@@ -551,15 +570,15 @@ show_main_menu() {
     echo "======================================"
     echo "         MENU QUẢN LÝ SERVER"
     echo "======================================"
-    echo "1. Cài đặt đầy đủ"
-    echo "2. Quản lý website"
-    echo "3. Quản lý server"
-    echo "4. Quản lý database"
-    echo "5. Bảo mật & Tối ưu"
-    echo "6. Thông tin hệ thống"
-    echo "7. Kiểm tra sức khỏe"
-    echo "8. Xuất cấu hình backup"
-    echo "9. Cập nhật hệ thống"
+    echo "1. Quản lý website"
+    echo "2. Quản lý server"
+    echo "3. Quản lý database"
+    echo "4. Bảo mật & Tối ưu"
+    echo "5. Thông tin hệ thống"
+    echo "6. Kiểm tra sức khỏe"
+    echo "7. Xuất cấu hình backup"
+    echo "8. Cập nhật"
+    echo "9. Cập nhật script"
     echo "10. Thoát"
     echo "======================================"
 }
@@ -571,7 +590,8 @@ show_website_menu() {
     echo "3. Backup website"
     echo "4. Restore website"
     echo "5. Hiển thị thông tin website"
-    echo "6. Quay lại"
+    echo "6. Xóa tất cả website"
+    echo "7. Quay lại"
 }
 
 show_server_menu() {
@@ -580,6 +600,15 @@ show_server_menu() {
     echo "2. Xem log real-time"
     echo "3. Cập nhật hệ thống"
     echo "4. Quay lại"
+}
+
+show_update_menu() {
+    echo "=== Cập nhật ==="
+    echo "1. Cập nhật hệ thống (apt)"
+    echo "2. Cập nhật Caddy"
+    echo "3. Cập nhật PHP"
+    echo "4. Cập nhật MariaDB"
+    echo "5. Quay lại"
 }
 
 show_db_menu() {
@@ -622,36 +651,36 @@ while true; do
     show_main_menu
     read -p "Chọn mục (1-10): " choice
     case $choice in
-        1) install_all ;;
-        2) 
+        1) 
             while true; do
                 show_website_menu
-                read -p "Chọn: " subchoice
+                read -p "Chọn (1-7): " subchoice
                 case $subchoice in
                     1) create_wp_site ;;
                     2) delete_wp_site ;;
                     3) backup_website ;;
                     4) restore_website ;;
                     5) show_websites ;;
-                    6) break ;;
+                    6) delete_all_sites ;;
+                    7) break ;;
                     *) echo "Lựa chọn không hợp lệ!" ;;
                 esac
             done
             ;;
-        3)
+        2)
             while true; do
                 show_server_menu
                 read -p "Chọn: " subchoice
                 case $subchoice in
                     1) manage_service ;;
                     2) view_logs ;;
-                    3) update_system ;;
+                    3) update_apt ;;
                     4) break ;;
                     *) echo "Lựa chọn không hợp lệ!" ;;
                 esac
             done
             ;;
-        4)
+        3)
             while true; do
                 show_db_menu
                 read -p "Chọn: " subchoice
@@ -667,7 +696,7 @@ while true; do
                 esac
             done
             ;;
-        5)
+        4)
             while true; do
                 show_security_menu
                 read -p "Chọn: " subchoice
@@ -682,7 +711,7 @@ while true; do
                 esac
             done
             ;;
-        6)
+        5)
             while true; do
                 show_info_menu
                 read -p "Chọn: " subchoice
@@ -693,7 +722,7 @@ while true; do
                 esac
             done
             ;;
-        7)
+        6)
             while true; do
                 show_health_menu
                 read -p "Chọn: " subchoice
@@ -706,9 +735,23 @@ while true; do
                 esac
             done
             ;;
-        8) create_backup_script ;;
-        9) update_system ;;
-        10) break ;;)
+        7) create_backup_script ;;
+        8) 
+            while true; do
+                show_update_menu
+                read -p "Chọn: " subchoice
+                case $subchoice in
+                    1) update_apt ;;
+                    2) update_caddy ;;
+                    3) update_php ;;
+                    4) update_mariadb ;;
+                    5) break ;;
+                    *) echo "Lựa chọn không hợp lệ!" ;;
+                esac
+            done
+            ;;
+        9) update_script ;;
+        10) break ;;
         *) echo "Lựa chọn không hợp lệ!" ;;
     esac
     echo ""
