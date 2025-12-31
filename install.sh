@@ -68,7 +68,12 @@ echo "Cài đặt PHP 8.4..."
 sudo apt install software-properties-common -y
 sudo add-apt-repository ppa:ondrej/php -y
 sudo apt update
-sudo apt install php8.4 php8.4-cli php8.4-fpm php8.4-mysql php8.4-xml php8.4-mbstring php8.4-curl php8.4-zip php8.4-gd php8.4-intl php8.4-bcmath -y
+sudo apt install php8.4 php8.4-cli php8.4-fpm php8.4-mysql php8.4-xml php8.4-mbstring php8.4-curl php8.4-zip php8.4-gd php8.4-intl php8.4-bcmath php8.4-opcache php8.4-imagick -y
+
+echo "Cài đặt WP-CLI..."
+curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+chmod +x wp-cli.phar
+sudo mv wp-cli.phar /usr/local/bin/wp
 
 echo "Cài đặt MariaDB 11.4..."
 # Thêm repository MariaDB
@@ -79,6 +84,9 @@ echo "deb [signed-by=/etc/apt/keyrings/mariadb-keyring.pgp] https://mirror.23m.c
 sudo apt update
 sudo apt install mariadb-server -y
 
+echo "Cài đặt Redis..."
+sudo apt install redis-server php8.4-redis -y
+
 echo "Khởi động và kích hoạt các dịch vụ..."
 sudo systemctl enable caddy
 sudo systemctl start caddy
@@ -86,6 +94,8 @@ sudo systemctl enable php8.4-fpm
 sudo systemctl start php8.4-fpm
 sudo systemctl enable mariadb
 sudo systemctl start mariadb
+sudo systemctl enable redis-server
+sudo systemctl start redis-server
 
 echo "Thiết lập MariaDB bảo mật..."
 sudo mysql_secure_installation
@@ -170,6 +180,10 @@ create_wp_site() {
     # Thêm salts
     salts=$(generate_wp_salts)
     sudo -u www-data sed -i "/AUTH_KEY/r /dev/stdin" wp-config.php <<< "$salts"
+    
+    # Cài đặt plugins cần thiết
+    sudo -u www-data wp plugin install redis-cache wp-super-cache --activate --allow-root
+    sudo -u www-data wp redis enable --allow-root
     
     # Cấu hình Caddy
     sudo mkdir -p /etc/caddy/sites
