@@ -112,16 +112,19 @@ sudo systemctl enable redis-server
 sudo systemctl start redis-server
 
 echo "Thiết lập MariaDB bảo mật..."
-root_pass=$(generate_password)
-sudo mariadb -u root << EOF
+if [ ! -f /etc/bnix_config ]; then
+    root_pass=$(generate_password)
+    sudo mariadb -u root << EOF
 SET PASSWORD FOR 'root'@'localhost' = '$root_pass';
 DELETE FROM mysql.user WHERE User='';
 DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
 DROP DATABASE IF EXISTS test;
 FLUSH PRIVILEGES;
 EOF
-
-echo "ROOT_PASS=$root_pass" > /etc/bnix_config
+    echo "ROOT_PASS=$root_pass" > /etc/bnix_config
+else
+    echo "MariaDB đã được cấu hình trước đó, bỏ qua."
+fi
 
 echo "Tạo script menu bnix..."
 cat << 'EOF' | sudo tee /usr/local/bin/bnix > /dev/null
@@ -149,12 +152,18 @@ update_script() {
     wget -q "$SCRIPT_UPDATE_URL" -O /tmp/install_new.sh
     if [ $? -eq 0 ]; then
         # So sánh với phiên bản hiện tại
-        if cmp -s /tmp/install_new.sh /usr/local/bin/bnix-install.sh; then
+        if cmp -s /tmp/install_new.sh "$0"; then
             echo "Script đã là phiên bản mới nhất."
         else
             echo "Đang cập nhật script..."
-            sudo mv /tmp/install_new.sh /usr/local/bin/bnix-install.sh
-            sudo chmod +x /usr/local/bin/bnix-install.sh
+            sudo mv /tmp/install_new.sh "$0"
+            sudo chmod +x "$0"
+            echo "Script đã được cập nhật! Chạy lại bnix để sử dụng tính năng mới."
+        fi
+    else
+        echo "Không thể tải script mới. Kiểm tra kết nối internet."
+    fi
+}
             echo "Script đã được cập nhật! Khởi động lại menu để áp dụng thay đổi."
         fi
     else
