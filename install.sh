@@ -3,6 +3,11 @@
 # Script cài đặt Caddy, PHP 8.4, MariaDB 11.4 trên Ubuntu 24
 # Và thiết lập menu quản lý với lệnh 'bnix'
 
+# Function để tạo password ngẫu nhiên
+generate_password() {
+    openssl rand -base64 12
+}
+
 # URL để cập nhật script (thay thế bằng URL thực tế của bạn)
 SCRIPT_UPDATE_URL="https://raw.githubusercontent.com/bnixvn/caddy/main/install.sh"
 
