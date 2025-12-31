@@ -98,7 +98,14 @@ sudo systemctl enable redis-server
 sudo systemctl start redis-server
 
 echo "Thiết lập MariaDB bảo mật..."
-sudo mysql_secure_installation
+root_pass=$(generate_password)
+sudo mysql -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$root_pass';"
+sudo mysql -u root -p"$root_pass" -e "DELETE FROM mysql.user WHERE User='';"
+sudo mysql -u root -p"$root_pass" -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+sudo mysql -u root -p"$root_pass" -e "DROP DATABASE IF EXISTS test;"
+sudo mysql -u root -p"$root_pass" -e "FLUSH PRIVILEGES;"
+
+echo "ROOT_PASS=$root_pass" > /etc/bnix_config
 
 echo "Tạo script menu bnix..."
 cat << 'EOF' | sudo tee /usr/local/bin/bnix > /dev/null
