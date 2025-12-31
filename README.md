@@ -7,6 +7,7 @@ Script tự động cài đặt Caddy, PHP 8.4, MariaDB 11.4 trên Ubuntu 24 và
 ### Download và chạy
 ```bash
 wget https://raw.githubusercontent.com/bnixvn/caddy/main/install.sh
+chmod +x install.sh
 sudo bash install.sh
 ```
 
@@ -108,3 +109,4 @@ MIT License - Sử dụng tự do cho mục đích cá nhân và thương mại.
 ## Contributing
 
 Contributions welcome! Fork repo và tạo Pull Request.
+
