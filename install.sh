@@ -26,6 +26,15 @@ if [ "$1" == "update" ]; then
     exit 0
 fi
 
+# Kiểm tra tham số recreate - chỉ tạo lại menu bnix
+if [ "$1" == "recreate" ] || [ "$1" == "bnix" ]; then
+    echo "Tạo lại menu bnix..."
+    # Jump to bnix creation
+    # This would require restructuring the script
+    echo "Tính năng này chưa implement. Hãy chạy ./install.sh và nó sẽ skip nếu đã cài."
+    exit 0
+fi
+
 # Menu chính khi chạy script
 if [ $# -eq 0 ]; then
     echo "======================================"
@@ -162,12 +171,6 @@ update_script() {
         fi
     else
         echo "Không thể tải script mới. Kiểm tra kết nối internet."
-    fi
-}
-            echo "Script đã được cập nhật! Khởi động lại menu để áp dụng thay đổi."
-        fi
-    else
-        echo "Không thể tải phiên bản mới. Kiểm tra kết nối internet."
     fi
 }
 
