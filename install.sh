@@ -207,7 +207,7 @@ create_wp_site() {
     sudo -u www-data wp core install --url="https://$domain" --title="$domain" --admin_user="admin" --admin_password="$admin_pass" --admin_email="admin@$domain" --allow-root
     
     # Cài đặt plugins cần thiết
-    sudo -u www-data wp plugin install redis-cache wp-super-cache --activate --allow-root
+    sudo -u www-data wp plugin install redis-cache --activate --allow-root
     sudo -u www-data wp redis enable --allow-root
     
     # Cấu hình Caddy
