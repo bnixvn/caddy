@@ -68,6 +68,15 @@ curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo 
 sudo apt update
 sudo apt install caddy -y
 
+# Tạo Caddyfile với import
+cat << 'EOF' | sudo tee /etc/caddy/Caddyfile > /dev/null
+{
+    email admin@example.com
+}
+
+import /etc/caddy/sites/*.conf
+EOF
+
 echo "Cài đặt PHP 8.4..."
 # Thêm repository PHP
 sudo apt install software-properties-common -y
@@ -202,8 +211,8 @@ create_wp_site() {
     sudo -u www-data wp redis enable --allow-root
     
     # Cấu hình Caddy
-    cat << CADDY_EOF | sudo tee -a /etc/caddy/Caddyfile > /dev/null
-
+    sudo mkdir -p /etc/caddy/sites
+    cat << CADDY_EOF | sudo tee /etc/caddy/sites/$domain.conf > /dev/null
 $domain {
     root * $webroot
     encode gzip
@@ -211,7 +220,6 @@ $domain {
     file_server
 }
 CADDY_EOF
-    
     sudo systemctl reload caddy
     
     # Lưu thông tin
@@ -241,7 +249,7 @@ delete_wp_site() {
     # sudo mariadb -u root -p$(grep ROOT_PASS $CONFIG_FILE | cut -d'=' -f2) -e "DROP DATABASE $db_name;"
     
     # Xóa cấu hình Caddy
-    sudo sed -i "/^$domain {/,/^}/d" /etc/caddy/Caddyfile
+    sudo rm -f /etc/caddy/sites/$domain.conf
     sudo systemctl reload caddy
     
     # Xóa khỏi file config
@@ -343,7 +351,7 @@ delete_all_sites() {
         sudo mariadb -u root -p$(grep ROOT_PASS $CONFIG_FILE | cut -d'=' -f2) -e "DROP USER '$db_user'@'localhost';" 2>/dev/null || echo "User $db_user không tồn tại hoặc đã xóa."
         
         # Xóa cấu hình Caddy
-        sudo rm -f /etc/caddy/sites/"$domain"
+        sudo rm -f /etc/caddy/sites/"$domain".conf
         
         echo "Đã xóa: $domain"
     done < /etc/bnix/sites.conf
