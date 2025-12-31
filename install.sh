@@ -202,8 +202,8 @@ create_wp_site() {
     sudo -u www-data wp redis enable --allow-root
     
     # Cấu hình Caddy
-    sudo mkdir -p /etc/caddy/sites
-    cat << CADDY_EOF | sudo tee /etc/caddy/sites/$domain > /dev/null
+    cat << CADDY_EOF | sudo tee -a /etc/caddy/Caddyfile > /dev/null
+
 $domain {
     root * $webroot
     encode gzip
@@ -241,7 +241,7 @@ delete_wp_site() {
     # sudo mariadb -u root -p$(grep ROOT_PASS $CONFIG_FILE | cut -d'=' -f2) -e "DROP DATABASE $db_name;"
     
     # Xóa cấu hình Caddy
-    sudo rm -f /etc/caddy/sites/$domain
+    sudo sed -i "/^$domain {/,/^}/d" /etc/caddy/Caddyfile
     sudo systemctl reload caddy
     
     # Xóa khỏi file config
