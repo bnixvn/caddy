@@ -193,6 +193,10 @@ create_wp_site() {
     salts=$(generate_wp_salts)
     sudo -u www-data sed -i "/AUTH_KEY/r /dev/stdin" wp-config.php <<< "$salts"
     
+    # Cài đặt WordPress core
+    admin_pass=$(generate_password)
+    sudo -u www-data wp core install --url="https://$domain" --title="$domain" --admin_user="admin" --admin_password="$admin_pass" --admin_email="admin@$domain" --allow-root
+    
     # Cài đặt plugins cần thiết
     sudo -u www-data wp plugin install redis-cache wp-super-cache --activate --allow-root
     sudo -u www-data wp redis enable --allow-root
@@ -211,9 +215,12 @@ CADDY_EOF
     sudo systemctl reload caddy
     
     # Lưu thông tin
-    echo "$domain|$webroot|$db_name|$db_user|$db_pass" >> /etc/bnix/sites.conf
+    echo "$domain|$webroot|$db_name|$db_user|$db_pass|$admin_pass" >> /etc/bnix/sites.conf
     
-    echo "Website $domain đã được tạo. Database: $db_name, User: $db_user, Pass: $db_pass"
+    echo "Website $domain đã được tạo."
+    echo "Database: $db_name, User: $db_user, Pass: $db_pass"
+    echo "Admin User: admin, Admin Pass: $admin_pass"
+    echo "URL: https://$domain"
 }
 
 delete_wp_site() {
