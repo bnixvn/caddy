@@ -115,7 +115,7 @@ echo "Thiết lập MariaDB bảo mật..."
 if [ ! -f /etc/bnix_config ]; then
     root_pass=$(generate_password)
     sudo mariadb -u root << EOF
-SET PASSWORD FOR 'root'@'localhost' = '$root_pass';
+ALTER USER 'root'@'localhost' IDENTIFIED BY '$root_pass';
 DELETE FROM mysql.user WHERE User='';
 DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
 DROP DATABASE IF EXISTS test;
